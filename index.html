@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>JARVIS LOCAL AI</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap"
+    rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #4afdb0;
+      --bg: #020202;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--primary);
+      font-family: 'Orbitron', sans-serif;
+      overflow: hidden;
+    }
+
+    #bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+    }
+
+    .hud {
+      width: 100%;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .panel {
+      border: 1px solid var(--primary);
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 25px var(--primary);
+      border-radius: 18px;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .panel h2 {
+      margin-bottom: 15px;
+    }
+
+    .center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .jarvis-title {
+      font-size: 3rem;
+      margin-bottom: 20px;
+      text-shadow: 0 0 15px var(--primary);
+    }
+
+    .core {
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      border: 4px solid var(--primary);
+      position: relative;
+      cursor: pointer;
+
+      box-shadow:
+        0 0 30px var(--primary),
+        inset 0 0 30px var(--primary);
+
+      animation: float 4s ease-in-out infinite;
+    }
+
+    .core::before,
+    .core::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      border: 2px dashed var(--primary);
+    }
+
+    .core::before {
+      inset: 20px;
+      animation: spin 8s linear infinite;
+    }
+
+    .core::after {
+      inset: 50px;
+      animation: spinReverse 12s linear infinite;
+    }
+
+    .core.active {
+      transform: scale(1.05);
+
+      box-shadow:
+        0 0 50px var(--primary),
+        0 0 100px var(--primary),
+        inset 0 0 50px var(--primary);
+    }
+
+    .command-box {
+      width: 80%;
+      margin-top: 30px;
+    }
+
+    .command-input {
+      width: 100%;
+      padding: 15px;
+      border-radius: 12px;
+      outline: none;
+      border: 1px solid var(--primary);
+
+      background: black;
+      color: var(--primary);
+
+      font-family: 'Orbitron';
+
+      box-shadow: 0 0 15px var(--primary);
+    }
+
+    .log {
+      font-family: monospace;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .file {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+    }
+
+    .file:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .status {
+      margin-top: 20px;
+    }
+
+    .status p {
+      margin: 10px 0;
+    }
+
+    .clock {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      text-shadow: 0 0 10px var(--primary);
+    }
+
+    .footer {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: #ffffff66;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes spinReverse {
+      from {
+        transform: rotate(360deg);
+      }
+
+      to {
+        transform: rotate(0deg);
+      }
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0px);
+      }
+
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    @media(max-width:900px) {
+
+      body {
+        overflow: auto;
+      }
+
+      .hud {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+
+      .core {
+        width: 220px;
+        height: 220px;
+      }
+
+      .jarvis-title {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <canvas id="bg"></canvas>
+
+  <div class="hud">
+
+    <!-- LEFT PANEL -->
+
+    <div class="panel">
+
+      <h2>FILES</h2>
+
+      <div id="filesList">
+        <div class="file">system.log</div>
+        <div class="file">jarvis_memory.json</div>
+        <div class="file">voice_module.dll</div>
+      </div>
+
+      <div class="status">
+
+        <h2>SYSTEM STATUS</h2>
+
+        <p>AI: <span id="aiStatus">ONLINE</span></p>
+        <p>Voice: <span id="voiceStatus">READY</span></p>
+        <p>Model: <span id="modelStatus">gemini-2.5-flash</span></p>
+
+      </div>
+
+    </div>
+
+    <!-- CENTER -->
+
+    <div class="center">
+
+      <div class="jarvis-title">J2V</div>
+
+      <div class="core" id="core"></div>
+
+      <div class="clock" id="clock"></div>
+
+      <div class="command-box">
+
+        <input type="text" id="commandInput" class="command-input"
+          placeholder="Speak or type command..." />
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL -->
+
+    <div class="panel">
+
+      <h2>COMMAND LOG</h2>
+
+      <div class="log" id="log">
+        > JARVIS initialized...<br>
+        > Voice system online...<br>
+        > Gemini connection ready...<br>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="footer">
+    JARVIS LOCAL AI • ONLINE MODE
+  </div>
+
+  <script>
+
+    /* ELEMENTS */
+
+    const input = document.getElementById("commandInput");
+    const log = document.getElementById("log");
+    const core = document.getElementById("core");
+
+    let isProcessing = false;
+
+    /* LOG */
+
+    function addLog(text) {
+
+      log.innerHTML += `> ${text}<br>`;
+
+      log.scrollTop = log.scrollHeight;
+    }
+
+    /* SPEAK */
+
+    function speak(text) {
+
+      speechSynthesis.cancel();
+
+      const msg = new SpeechSynthesisUtterance(text);
+
+      const voices = speechSynthesis.getVoices();
+
+      const voice =
+        voices.find(v => v.lang.includes("en")) || voices[0];
+
+      msg.voice = voice;
+
+      msg.lang = "en-US";
+
+      msg.rate = 1;
+
+      msg.pitch = 1;
+
+      speechSynthesis.speak(msg);
+    }
+
+    /* CORE EFFECT */
+
+    function pulse() {
+
+      core.classList.add("active");
+
+      setTimeout(() => {
+
+        core.classList.remove("active");
+
+      }, 700);
+    }
+
+    /* AI REQUEST */
+
+    async function askAI(prompt) {
+
+      if (!prompt || isProcessing) return;
+
+      isProcessing = true;
+
+      pulse();
+
+      addLog("YOU: " + prompt);
+
+      try {
+
+        const response = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_API_KEY",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `
+You are JARVIS, an advanced futuristic AI assistant inspired by Iron Man.
+
+Current Time: ${new Date().toLocaleString()}
+
+User: ${prompt}
+                      `
+                    }
+                  ]
+                }
+              ]
+            })
+          }
+        );
+
+        if (!response.ok) {
+
+          const errText = await response.text();
+
+          throw new Error(
+            "HTTP " + response.status + " : " + errText
+          );
+        }
+
+        const data = await response.json();
+
+        console.log(data);
+
+        const reply =
+          data.candidates?.[0]?.content?.parts?.[0]?.text
+          || "No response";
+
+        addLog("JARVIS: " + reply);
+
+        speak(reply);
+
+      }
+
+      catch (err) {
+
+        console.error(err);
+
+        addLog("ERROR: " + err.message);
+
+        speak("Connection error");
+
+      }
+
+      isProcessing = false;
+    }
+
+    /* INPUT */
+
+    input.addEventListener("keypress", (e) => {
+
+      if (e.key === "Enter") {
+
+        const cmd = input.value.trim();
+
+        if (cmd) {
+
+          askAI(cmd);
+
+          input.value = "";
+        }
+      }
+
+    });
+
+    /* VOICE RECOGNITION */
+
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    let recognition;
+
+    let isListening = false;
+
+    if (SpeechRecognition) {
+
+      recognition = new SpeechRecognition();
+
+      recognition.continuous = true;
+
+      recognition.interimResults = false;
+
+      recognition.lang = "en-US";
+
+      function startListening() {
+
+        if (isListening) return;
+
+        recognition.start();
+
+        isListening = true;
+
+        document.getElementById("voiceStatus").textContent = "LISTENING";
+
+        core.classList.add("active");
+
+        addLog("🎤 Listening started...");
+      }
+
+      function stopListening() {
+
+        if (!isListening) return;
+
+        recognition.stop();
+
+        isListening = false;
+
+        document.getElementById("voiceStatus").textContent = "READY";
+
+        core.classList.remove("active");
+
+        addLog("🛑 Listening stopped...");
+      }
+
+      recognition.onresult = (event) => {
+
+        const transcript =
+          event.results[event.results.length - 1][0].transcript.trim();
+
+        if (!transcript) return;
+
+        input.value = transcript;
+
+        addLog("YOU (voice): " + transcript);
+
+        askAI(transcript);
+      };
+
+      recognition.onend = () => {
+
+        if (isListening) {
+
+          recognition.start();
+        }
+      };
+
+      recognition.onerror = (e) => {
+
+        console.log("VOICE ERROR:", e);
+
+        addLog("VOICE ERROR: " + e.error);
+
+        isListening = false;
+
+        core.classList.remove("active");
+
+        document.getElementById("voiceStatus").textContent = "ERROR";
+      };
+
+      /* CORE CLICK */
+
+      core.addEventListener("click", () => {
+
+        if (!isListening) {
+
+          startListening();
+
+        } else {
+
+          stopListening();
+        }
+
+      });
+
+    }
+
+    else {
+
+      addLog("SpeechRecognition not supported in this browser");
+    }
+
+    /* CLOCK */
+
+    setInterval(() => {
+
+      document.getElementById("clock")
+        .innerText =
+        new Date().toLocaleTimeString();
+
+    }, 1000);
+
+    /* PARTICLE BACKGROUND */
+
+    const canvas = document.getElementById("bg");
+
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = window.innerWidth;
+
+    canvas.height = window.innerHeight;
+
+    const particles = [];
+
+    for (let i = 0; i < 120; i++) {
+
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 2,
+        d: Math.random() * 1
+      });
+
+    }
+
+    function draw() {
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#4afdb0";
+
+      particles.forEach(p => {
+
+        ctx.beginPath();
+
+        ctx.arc(
+          p.x,
+          p.y,
+          p.r,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+
+        p.y += p.d;
+
+        if (p.y > canvas.height) {
+
+          p.y = 0;
+        }
+
+      });
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    /* RESIZE */
+
+    window.addEventListener("resize", () => {
+
+      canvas.width = window.innerWidth;
+
+      canvas.height = window.innerHeight;
+
+    });
+
+    /* STARTUP */
+
+    window.onload = () => {
+
+      speak("Welcome back sir. All systems are online.");
+    };
+
+  </script>
+
+</body>
+
+</html>

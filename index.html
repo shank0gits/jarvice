@@ -305,6 +305,7 @@
     const core = document.getElementById("core");
 
     let isProcessing = false;
+    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
 
     /* LOG */
 
@@ -353,83 +354,141 @@
     }
 
     /* AI REQUEST */
-
     async function askAI(prompt) {
 
-      if (!prompt || isProcessing) return;
+  if (!prompt || isProcessing) return;
 
-      isProcessing = true;
+  isProcessing = true;
 
-      pulse();
+  pulse();
 
-      addLog("YOU: " + prompt);
+  addLog("YOU: " + prompt);
 
-      try {
+  let reply = "No response";
 
-        const response = await fetch(
-          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_API_KEY",
-          {
-            method: "POST",
+  try {
 
-            headers: {
-              "Content-Type": "application/json"
-            },
+    /* =========================
+       TRY GEMINI FIRST
+    ========================== */
 
-            body: JSON.stringify({
-              contents: [
+    addLog("Connecting to Gemini AI...");
+
+    const geminiResponse = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_API_KEY",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
                 {
-                  parts: [
-                    {
-                      text: `
+                  text: `
 You are JARVIS, an advanced futuristic AI assistant inspired by Iron Man.
 
 Current Time: ${new Date().toLocaleString()}
 
 User: ${prompt}
-                      `
-                    }
-                  ]
+                  `
                 }
               ]
-            })
-          }
-        );
+            }
+          ]
+        })
+      }
+    );
 
-        if (!response.ok) {
+    if (!geminiResponse.ok) {
 
-          const errText = await response.text();
+      throw new Error("Gemini API failed");
+    }
 
-          throw new Error(
-            "HTTP " + response.status + " : " + errText
-          );
+    const geminiData = await geminiResponse.json();
+
+    reply =
+      geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+      || "No response";
+
+    addLog("Connected to Gemini AI");
+
+  }
+
+  catch (geminiError) {
+
+    console.log("Gemini failed:", geminiError);
+
+    addLog("Gemini failed. Switching to Ollama...");
+
+    /* =========================
+       FALLBACK TO OLLAMA
+    ========================== */
+
+    try {
+
+      const ollamaResponse = await fetch(
+        "http://localhost:11434/api/generate",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json"
+          },
+
+          body: JSON.stringify({
+            model: "phi3",
+
+            prompt: `
+You are JARVIS, an advanced futuristic AI assistant inspired by Iron Man.
+
+Current Time: ${new Date().toLocaleString()}
+
+User: ${prompt}
+            `,
+
+            stream: false
+          })
         }
+      );
 
-        const data = await response.json();
+      if (!ollamaResponse.ok) {
 
-        console.log(data);
-
-        const reply =
-          data.candidates?.[0]?.content?.parts?.[0]?.text
-          || "No response";
-
-        addLog("JARVIS: " + reply);
-
-        speak(reply);
-
+        throw new Error("Ollama offline");
       }
 
-      catch (err) {
+      const ollamaData = await ollamaResponse.json();
 
-        console.error(err);
+      reply = ollamaData.response || "No response";
 
-        addLog("ERROR: " + err.message);
+      addLog("Connected to Ollama Local AI");
 
-        speak("Connection error");
+    }
 
-      }
+    catch (ollamaError) {
+
+      console.error(ollamaError);
+
+      addLog("ERROR: Gemini + Ollama both unavailable");
+
+      speak("Both AI systems are offline sir");
 
       isProcessing = false;
+
+      return;
     }
+  }
+
+  addLog("JARVIS: " + reply);
+
+  speak(reply);
+
+  isProcessing = false;
+}
+    
 
     /* INPUT */
 

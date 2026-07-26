@@ -1,0 +1,7 @@
+@echo off
+
+echo Loading AI Model...
+
+ollama run phi3
+
+pause
